@@ -1,0 +1,188 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<style>
+    .calendar {
+        display: grid;
+        grid-template-columns: 80px repeat(7, 1fr);
+        gap: 0;
+        border: 1px solid #ddd;
+        font-family: Arial, Helvetica, sans-serif;
+    }
+    .calendar .header, .calendar .time-cell, .calendar .slot {
+        border-bottom: 1px solid #eee;
+        border-right: 1px solid #eee;
+        padding: 6px;
+        box-sizing: border-box;
+    }
+    .calendar .header { background: #fafafa; font-weight: 600; text-align: center; }
+    .header .weekday { display:block; font-size: 13px; }
+    .header .date { display:block; font-size: 12px; color:#666 }
+    .calendar .time-cell { background: #fff; text-align: right; padding-right: 8px; color: #666; }
+    .calendar .slot { height: 32px; position: relative; }
+    .reserved { background: linear-gradient(90deg,#d1e7dd,#bcd9cc); color:#0f5132; }
+    .reserved .title { position: absolute; left: 6px; top: 6px; font-size: 13px; }
+    .controls { margin: 12px 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+    .btn { padding:6px 10px; background:#0d6efd; color:white; border-radius:4px; border:none; cursor:pointer }
+    .btn.secondary { background:#6c757d }
+    .inputs { display:flex; gap:8px; align-items:center }
+    label { font-size:13px; color:#333 }
+</style>
+
+<h2>預約（顯示模式）</h2>
+<p>使用下方兩個輸入欄位指定起始與結束時間，按下「建立預約」。日曆為顯示模式，不支援拖拉或點選。</p>
+
+<div class="controls">
+    <button id="prevWeek" class="btn secondary">上一週</button>
+    <button id="nextWeek" class="btn secondary">下一週</button>
+    <div style="flex:1"></div>
+    <button id="todayBtn" class="btn">本週</button>
+</div>
+
+<div style="margin:8px 0" class="inputs">
+    <label for="startInput">起始</label>
+    <input id="startInput" type="datetime-local" />
+    <label for="endInput">結束</label>
+    <input id="endInput" type="datetime-local" />
+    <button id="reserveBtn" class="btn">建立預約</button>
+</div>
+
+<div id="calendar" class="calendar" aria-label="Weekly calendar"></div>
+
+@section Scripts {
+    <script>
+        (function(){
+            const calendarEl = document.getElementById('calendar');
+            const reserveBtn = document.getElementById('reserveBtn');
+            const startInput = document.getElementById('startInput');
+            const endInput = document.getElementById('endInput');
+            const prevWeek = document.getElementById('prevWeek');
+            const nextWeek = document.getElementById('nextWeek');
+            const todayBtn = document.getElementById('todayBtn');
+
+            const slotMinutes = 30; // granularity for display
+            const startHour = 8;
+            const endHour = 20; // exclusive
+            let baseDate = new Date();
+
+            function startOfWeek(d) {
+                const date = new Date(d);
+                const day = (date.getDay() + 6) % 7; // Monday = 0
+                date.setDate(date.getDate() - day);
+                date.setHours(0,0,0,0);
+                return date;
+            }
+
+            function formatDate(d) {
+                return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+            }
+
+            function formatTime(d) {
+                return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+
+            function isoDateTime(d) { return d.toISOString(); }
+
+            function renderCalendar() {
+                calendarEl.innerHTML = '';
+                const weekStart = startOfWeek(baseDate);
+
+                // header placeholder
+                const headerEmpty = document.createElement('div');
+                headerEmpty.className = 'header';
+                headerEmpty.textContent = '';
+                calendarEl.appendChild(headerEmpty);
+
+                for (let i = 0; i < 7; i++) {
+                    const h = document.createElement('div');
+                    h.className = 'header';
+                    const d = new Date(weekStart);
+                    d.setDate(d.getDate() + i);
+                    const wk = document.createElement('span'); wk.className = 'weekday'; wk.textContent = d.toLocaleDateString(undefined, { weekday: 'short' });
+                    const dt = document.createElement('span'); dt.className = 'date'; dt.textContent = formatDate(d);
+                    h.appendChild(wk); h.appendChild(dt);
+                    calendarEl.appendChild(h);
+                }
+
+                const totalMinutes = (endHour - startHour) * 60;
+                const rows = totalMinutes / slotMinutes;
+
+                for (let row = 0; row < rows; row++) {
+                    const minutes = startHour * 60 + row * slotMinutes;
+                    const label = new Date(); label.setHours(0,0,0,0); label.setMinutes(minutes);
+                    const timeCell = document.createElement('div');
+                    timeCell.className = 'time-cell';
+                    timeCell.textContent = formatTime(label);
+                    calendarEl.appendChild(timeCell);
+
+                    for (let d = 0; d < 7; d++) {
+                        const slot = document.createElement('div');
+                        slot.className = 'slot';
+                        const slotStart = new Date(weekStart);
+                        slotStart.setDate(slotStart.getDate() + d);
+                        slotStart.setHours(0,0,0,0);
+                        slotStart.setMinutes(minutes);
+                        const slotEnd = new Date(slotStart.getTime() + slotMinutes * 60 * 1000);
+                        slot.dataset.start = isoDateTime(slotStart);
+                        slot.dataset.end = isoDateTime(slotEnd);
+                        calendarEl.appendChild(slot);
+                    }
+                }
+            }
+
+            function markReservedRange(start, end) {
+                const slots = Array.from(calendarEl.querySelectorAll('.slot'));
+                for (const s of slots) {
+                    const sStart = new Date(s.dataset.start);
+                    const sEnd = new Date(s.dataset.end);
+                    if (start < sEnd && end > sStart) {
+                        s.classList.add('reserved');
+                        if (!s.querySelector('.title')) {
+                            const t = document.createElement('div');
+                            t.className = 'title';
+                            t.textContent = '已預約';
+                            s.appendChild(t);
+                        }
+                    }
+                }
+            }
+
+            prevWeek.addEventListener('click', () => { baseDate.setDate(baseDate.getDate() - 7); renderCalendar(); });
+            nextWeek.addEventListener('click', () => { baseDate.setDate(baseDate.getDate() + 7); renderCalendar(); });
+            todayBtn.addEventListener('click', () => { baseDate = new Date(); renderCalendar(); });
+
+            reserveBtn.addEventListener('click', async () => {
+                const startVal = startInput.value;
+                const endVal = endInput.value;
+                if (!startVal || !endVal) { alert('請輸入起始與結束時間'); return; }
+                const start = new Date(startVal);
+                const end = new Date(endVal);
+                if (isNaN(start) || isNaN(end)) { alert('時間格式錯誤'); return; }
+                if (end <= start) { alert('結束時間必須晚於開始時間'); return; }
+
+                try {
+                    const res = await fetch('/Reservation/Reserve', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ start: start.toISOString(), end: end.toISOString() })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        markReservedRange(start, end);
+                        alert('預約成功');
+                        // optional: clear inputs
+                        startInput.value = '';
+                        endInput.value = '';
+                    } else {
+                        alert('預約失敗：' + (data.error || '未知錯誤'));
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('無法連線到伺服器');
+                }
+            });
+
+            // initial render
+            renderCalendar();
+        })();
+    </script>
+}
