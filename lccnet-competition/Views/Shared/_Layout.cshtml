@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/lccnet_competition.styles.css" asp-append-version="true" />
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
     <header>
         <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
             <div class="container-fluid">
@@ -20,18 +20,24 @@
                 </button>
                 <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
                     <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark" href="#" id="competitionDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">競賽</a>
+                            <ul class="dropdown-menu" aria-labelledby="competitionDropdown">
+                                <li><a class="dropdown-item" asp-area="" asp-controller="Competition" asp-action="Index">關於競賽</a></li>
+                                <li><a class="dropdown-item" asp-area="" asp-controller="Competition" asp-action="Data">資料集</a></li>
+                                <li><a class="dropdown-item" asp-area="" asp-controller="Competition" asp-action="Submission">繳交</a></li>
+                                <li><a class="dropdown-item" asp-area="" asp-controller="Competition" asp-action="Leaderboard">排行榜</a></li>
+                            </ul>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">開發環境預約</a>
                         </li>
                     </ul>
                 </div>
             </div>
         </nav>
     </header>
-    <div class="container">
+    <div class="container flex-grow-1">
         <main role="main" class="pb-3">
             @RenderBody()
         </main>

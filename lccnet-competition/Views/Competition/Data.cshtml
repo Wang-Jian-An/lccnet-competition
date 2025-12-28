@@ -1,0 +1,32 @@
+﻿@*
+    Partial view: Data (資料集)
+*@
+<div class="card mb-3">
+    <div class="card-body">
+        <h4>資料集下載</h4>
+        <p>下列為本次競賽可使用的資料檔案。請務必遵守資料使用規範。</p>
+
+        <div class="row">
+            <div class="col-md-6">
+                <ul class="list-group">
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        train.csv
+                        <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Download", "Competition", new { file = "train.csv" })">下載</a>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        test.csv
+                        <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Download", "Competition", new { file = "test.csv" })">下載</a>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        data_description.pdf
+                        <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Download", "Competition", new { file = "data_description.pdf" })">下載</a>
+                    </li>
+                </ul>
+            </div>
+            <div class="col-md-6">
+                <h5>資料說明</h5>
+                <p>訓練資料包含用戶特徵與目標值。測試資料不含目標欄位。提交的檔案應包含 <code>Id</code> 與預測欄位 <code>Prediction</code>。</p>
+            </div>
+        </div>
+    </div>
+</div>
