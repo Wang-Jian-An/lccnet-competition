@@ -1,4 +1,5 @@
-﻿@{
+﻿@model IEnumerable<lccnet_competition.Models.EnvReversation>
+@{
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 <style>
@@ -21,7 +22,10 @@
     .calendar .time-cell { background: #fff; text-align: right; padding-right: 8px; color: #666; }
     .calendar .slot { height: 32px; position: relative; }
     .reserved { background: linear-gradient(90deg,#d1e7dd,#bcd9cc); color:#0f5132; }
-    .reserved .title { position: absolute; left: 6px; top: 6px; font-size: 13px; }
+    /* time-range placed at top-left */
+    .reserved .time-range { position: absolute; left: 6px; top: 4px; font-size: 11px; font-weight: 600; }
+    /* move title slightly lower to avoid overlap with time-range */
+    .reserved .title { position: absolute; left: 6px; top: 18px; font-size: 13px; }
     .controls { margin: 12px 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap }
     .btn { padding:6px 10px; background:#0d6efd; color:white; border-radius:4px; border:none; cursor:pointer }
     .btn.secondary { background:#6c757d }
@@ -39,12 +43,17 @@
     <button id="todayBtn" class="btn">本週</button>
 </div>
 
-<div style="margin:8px 0" class="inputs">
+<form style="margin:8px 0" class="inputs" asp-controller="Reservation", asp-action="Reserve" method="post">
     <label for="startInput">起始</label>
-    <input id="startInput" type="datetime-local" />
+    <input id="startInput" name="startDate" type="datetime-local" />
     <label for="endInput">結束</label>
-    <input id="endInput" type="datetime-local" />
-    <button id="reserveBtn" class="btn">建立預約</button>
+    <input id="endInput" name="endDate" type="datetime-local" />
+    <button type="submit" class="btn">建立預約</button>
+</form>
+
+<div>
+    @ViewData["ReserveError"]
+    @ViewData["ReserveMessage"]
 </div>
 
 <div id="calendar" class="calendar" aria-label="Weekly calendar"></div>
@@ -59,6 +68,9 @@
             const prevWeek = document.getElementById('prevWeek');
             const nextWeek = document.getElementById('nextWeek');
             const todayBtn = document.getElementById('todayBtn');
+
+            // reservations from server (ISO strings)
+            const reservations = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model?.Select(r => new { start = r.BookStartDatetime, end = r.BookEndDatetime, title = "已預約" }) ?? System.Linq.Enumerable.Empty<object>()));
 
             const slotMinutes = 30; // granularity for display
             const startHour = 8;
@@ -79,6 +91,14 @@
 
             function formatTime(d) {
                 return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+
+            function formatTimeShort(d) {
+                return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+
+            function formatRange(start, end) {
+                return `${formatTimeShort(start)} - ${formatTimeShort(end)}`;
             }
 
             function isoDateTime(d) { return d.toISOString(); }
@@ -128,20 +148,44 @@
                         calendarEl.appendChild(slot);
                     }
                 }
+
+                // after building grid, mark server reservations that intersect current week
+                try {
+                    for (const rv of reservations) {
+                        const s = new Date(rv.start);
+                        const e = new Date(rv.end);
+                        if (!isNaN(s) && !isNaN(e)) {
+                            markReservedRange(s, e, rv.title);
+                        }
+                    }
+                } catch (ex) {
+                    console.error('Error marking reservations', ex);
+                }
             }
 
-            function markReservedRange(start, end) {
+            function markReservedRange(start, end, title) {
                 const slots = Array.from(calendarEl.querySelectorAll('.slot'));
                 for (const s of slots) {
                     const sStart = new Date(s.dataset.start);
                     const sEnd = new Date(s.dataset.end);
                     if (start < sEnd && end > sStart) {
                         s.classList.add('reserved');
+                        // add title if not present
                         if (!s.querySelector('.title')) {
                             const t = document.createElement('div');
                             t.className = 'title';
-                            t.textContent = '已預約';
+                            t.textContent = title || '已預約';
                             s.appendChild(t);
+                        }
+
+                        // add time-range only on the slot that contains the reservation start
+                        if (start >= sStart && start < sEnd) {
+                            if (!s.querySelector('.time-range')) {
+                                const tr = document.createElement('div');
+                                tr.className = 'time-range';
+                                tr.textContent = formatRange(start, end);
+                                s.appendChild(tr);
+                            }
                         }
                     }
                 }
@@ -150,36 +194,6 @@
             prevWeek.addEventListener('click', () => { baseDate.setDate(baseDate.getDate() - 7); renderCalendar(); });
             nextWeek.addEventListener('click', () => { baseDate.setDate(baseDate.getDate() + 7); renderCalendar(); });
             todayBtn.addEventListener('click', () => { baseDate = new Date(); renderCalendar(); });
-
-            reserveBtn.addEventListener('click', async () => {
-                const startVal = startInput.value;
-                const endVal = endInput.value;
-                if (!startVal || !endVal) { alert('請輸入起始與結束時間'); return; }
-                const start = new Date(startVal);
-                const end = new Date(endVal);
-                if (isNaN(start) || isNaN(end)) { alert('時間格式錯誤'); return; }
-                if (end <= start) { alert('結束時間必須晚於開始時間'); return; }
-
-                try {
-                    const res = await fetch('/Reservation/Reserve', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ start: start.toISOString(), end: end.toISOString() })
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                        markReservedRange(start, end);
-                        alert('預約成功');
-                        // optional: clear inputs
-                        startInput.value = '';
-                        endInput.value = '';
-                    } else {
-                        alert('預約失敗：' + (data.error || '未知錯誤'));
-                    }
-                } catch (err) {
-                    console.error(err);
-                    alert('無法連線到伺服器');
-                }
-            });
 
             // initial render
             renderCalendar();
