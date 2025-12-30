@@ -25,7 +25,7 @@ namespace lccnet_competition.Controllers
 
         public IActionResult Download(string file)
         {
-            var filePath = Path.Combine(_env.ContentRootPath, "File", $"{file}.zip");
+            var filePath = Path.Combine(_env.WebRootPath, "File", $"{file}.zip");
 
             if (!System.IO.File.Exists(filePath))
             {
