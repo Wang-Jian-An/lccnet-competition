@@ -31,6 +31,7 @@
     .btn.secondary { background:#6c757d }
     .inputs { display:flex; gap:8px; align-items:center }
     label { font-size:13px; color:#333 }
+    .note { font-size:12px; color:#666 }
 </style>
 
 <h2>預約（顯示模式）</h2>
@@ -43,13 +44,21 @@
     <button id="todayBtn" class="btn">本週</button>
 </div>
 
-<form style="margin:8px 0" class="inputs" asp-controller="Reservation", asp-action="Reserve" method="post">
-    <label for="startInput">起始</label>
-    <input id="startInput" name="startDate" type="datetime-local" />
-    <label for="endInput">結束</label>
-    <input id="endInput" name="endDate" type="datetime-local" />
+<form id="reserveForm" style="margin:8px 0" class="inputs" asp-controller="Reservation" asp-action="Reserve" method="post">
+    <label for="startDateInput">起始</label>
+    <input id="startDateInput" type="date" />
+    <select id="startHourSelect" aria-label="起始小時"></select>
+    <input type="hidden" id="startDateHidden" name="startDate" />
+
+    <label for="endDateInput">結束</label>
+    <input id="endDateInput" type="date" />
+    <select id="endHourSelect" aria-label="結束小時"></select>
+    <input type="hidden" id="endDateHidden" name="endDate" />
+
     <button type="submit" class="btn">建立預約</button>
 </form>
+
+<div class="note">只能選擇整點（小時）；系統會以整點建立預約。</div>
 
 <div>
     @ViewData["ReserveError"]
@@ -62,19 +71,32 @@
     <script>
         (function(){
             const calendarEl = document.getElementById('calendar');
-            const reserveBtn = document.getElementById('reserveBtn');
-            const startInput = document.getElementById('startInput');
-            const endInput = document.getElementById('endInput');
+            const reserveForm = document.getElementById('reserveForm');
+            const startDateInput = document.getElementById('startDateInput');
+            const endDateInput = document.getElementById('endDateInput');
+            const startHourSelect = document.getElementById('startHourSelect');
+            const endHourSelect = document.getElementById('endHourSelect');
+            const startDateHidden = document.getElementById('startDateHidden');
+            const endDateHidden = document.getElementById('endDateHidden');
             const prevWeek = document.getElementById('prevWeek');
             const nextWeek = document.getElementById('nextWeek');
             const todayBtn = document.getElementById('todayBtn');
 
+            // build hour options 00..23
+            function pad(n){ return String(n).padStart(2,'0'); }
+            for (let h=0; h<24; h++){
+                const opt1 = document.createElement('option'); opt1.value = pad(h); opt1.textContent = pad(h) + ':00';
+                const opt2 = document.createElement('option'); opt2.value = pad(h); opt2.textContent = pad(h) + ':00';
+                startHourSelect.appendChild(opt1);
+                endHourSelect.appendChild(opt2);
+            }
+
             // reservations from server (ISO strings)
             const reservations = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model?.Select(r => new { start = r.BookStartDatetime, end = r.BookEndDatetime, title = "已預約" }) ?? System.Linq.Enumerable.Empty<object>()));
 
-            const slotMinutes = 30; // granularity for display
-            const startHour = 8;
-            const endHour = 20; // exclusive
+            const slotMinutes = 60; // granularity for display (one-hour slots)
+            const startHour = 0; // show from 00:00
+            const rows = 24; // display all 24 hours (0..23)
             let baseDate = new Date();
 
             function startOfWeek(d) {
@@ -103,6 +125,46 @@
 
             function isoDateTime(d) { return d.toISOString(); }
 
+            // helper: compose local datetime string yyyy-MM-ddTHH:mm
+            function buildLocalDateTime(dateStr, hourStr){
+                if (!dateStr || !hourStr) return '';
+                return dateStr + 'T' + hourStr + ':00';
+            }
+
+            // sync hidden inputs when controls change
+            function syncHiddenValues(){
+                startDateHidden.value = buildLocalDateTime(startDateInput.value, startHourSelect.value);
+                endDateHidden.value = buildLocalDateTime(endDateInput.value, endHourSelect.value);
+            }
+
+            startDateInput.addEventListener('change', syncHiddenValues);
+            endDateInput.addEventListener('change', syncHiddenValues);
+            startHourSelect.addEventListener('change', syncHiddenValues);
+            endHourSelect.addEventListener('change', syncHiddenValues);
+
+            // on submit validate and ensure hidden inputs set
+            if (reserveForm){
+                reserveForm.addEventListener('submit', function(ev){
+                    syncHiddenValues();
+                    const sVal = startDateHidden.value;
+                    const eVal = endDateHidden.value;
+                    if (!sVal || !eVal){
+                        alert('請選擇起始與結束的日期與整點小時');
+                        ev.preventDefault();
+                        return;
+                    }
+                    const s = new Date(sVal);
+                    const e = new Date(eVal);
+                    if (isNaN(s) || isNaN(e)){
+                        alert('時間格式錯誤'); ev.preventDefault(); return;
+                    }
+                    if (e <= s){ alert('結束時間必須在起始時間之後（以整點為單位）'); ev.preventDefault(); return; }
+                    const now = new Date();
+                    if (s < now){ alert('起始時間必須在未來'); ev.preventDefault(); return; }
+                    // allow submit
+                });
+            }
+
             function renderCalendar() {
                 calendarEl.innerHTML = '';
                 const weekStart = startOfWeek(baseDate);
@@ -123,9 +185,6 @@
                     h.appendChild(wk); h.appendChild(dt);
                     calendarEl.appendChild(h);
                 }
-
-                const totalMinutes = (endHour - startHour) * 60;
-                const rows = totalMinutes / slotMinutes;
 
                 for (let row = 0; row < rows; row++) {
                     const minutes = startHour * 60 + row * slotMinutes;

@@ -10,6 +10,7 @@ using System.Security.Claims;
 
 namespace lccnet_competition.Controllers
 {
+    [Authorize]
     public class ReservationController : Controller
     {
         // In-memory store for demo purposes
@@ -24,99 +25,100 @@ namespace lccnet_competition.Controllers
 
         public IActionResult Index()
         {
+            // Ensure user is authenticated and has an identifier
+            string? accountIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
+            {
+                return RedirectToAction("Login", "Account");
+            }
 
-            string accountIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
             List<EnvReversation> reservations = _context.EnvReversations
-                .Where(item => item.AccountId == int.Parse(accountIdStr))
+                .Where(item => item.AccountId == accountId)
                 .ToList();
 
             return View(reservations);
         }
 
         [HttpPost]
-        [Authorize]
         [IgnoreAntiforgeryToken]
         public IActionResult Reserve(DateTime? startDate, DateTime? endDate)
         {
-            ViewData["ReserveError"] = null;
-            ViewData["ReserveSuccess"] = null;
+            // Use TempData so we can redirect to Index and still display messages
+            TempData["ReserveError"] = null;
+            TempData["ReserveSuccess"] = null;
 
             if (!startDate.HasValue || !endDate.HasValue)
             {
-                ViewData["ReserveError"] = "請輸入起始與結束時間";
-                return View();
+                TempData["ReserveError"] = "請輸入起始與結束時間";
+                return RedirectToAction("Index");
             }
 
-            // 兩個都有值
             DateTime s = startDate.Value;
             DateTime e = endDate.Value;
 
-            // The end date must be after the start date
-            if (e <= s)
+            // normalize to whole hours: start rounded down, end rounded up to next hour if not exact
+            DateTime normalizedStart = new DateTime(s.Year, s.Month, s.Day, s.Hour, 0, 0, s.Kind);
+            DateTime normalizedEnd = new DateTime(e.Year, e.Month, e.Day, e.Hour, 0, 0, e.Kind);
+            if (e.Minute != 0 || e.Second != 0 || e.Millisecond != 0)
             {
-                ViewData["ReserveError"] = "結束時間必須在起始時間之後";
-                return View("Index");
+                normalizedEnd = normalizedEnd.AddHours(1);
             }
 
-            if (s < DateTime.Now)
+            if (normalizedEnd <= normalizedStart)
             {
-                ViewData["ReserveError"] = "起始時間必須在未來";
-                return View("Index");
+                TempData["ReserveError"] = "結束時間必須在起始時間之後（以整點為單位）";
+                return RedirectToAction("Index");
             }
-            
-            // Get Account Id
-            string accountIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
-            double totalTime = _context.EnvReversations
-                .Where(item => item.AccountId == int.Parse(accountIdStr))
-                .Sum(item =>
-                    EF.Functions.DateDiffSecond(
-                        item.BookStartDatetime,
-                        item.BookEndDatetime
-                    )
-                );
-            double newTotalTime = totalTime + EF.Functions.DateDiffSecond(s, e);
-            
-            if (accountIdStr == null)
+            // require start in the future (compare to now)
+            if (normalizedStart < DateTime.Now)
+            {
+                TempData["ReserveError"] = "起始時間必須在未來";
+                return RedirectToAction("Index");
+            }
+
+            string? accountIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
             {
                 return RedirectToAction("Login", "Account");
             }
-            else
+
+            EnvReversation evaReversation = new EnvReversation
             {
-                EnvReversation evaReversation = new EnvReversation
-                {
-                    AccountId = int.Parse(accountIdStr),
-                    BookStartDatetime = s,
-                    BookEndDatetime = e,
-                };
+                AccountId = accountId,
+                BookStartDatetime = normalizedStart,
+                BookEndDatetime = normalizedEnd,
+            };
 
-                using var transaction = _context.Database.BeginTransaction();
+            using var transaction = _context.Database.BeginTransaction();
 
-                try
-                {
-                    _context.EnvReversations.Add(evaReversation);
-                    _context.SaveChanges();
-                    transaction.Commit();
+            try
+            {
+                _context.EnvReversations.Add(evaReversation);
+                _context.SaveChanges();
+                transaction.Commit();
 
-                    ViewData["ReserveSuccess"] = "預約成功！";
-                    return View("Index");
-                }
-                catch (Exception ex)
-                {
-                    transaction.Rollback();
-                    ViewData["ReserveError"] = "預約失敗，請稍後再試。";
-                    return View();
-                }
+                TempData["ReserveSuccess"] = "預約成功！";
+                return RedirectToAction("Index");
+            }
+            catch (Exception ex)
+            {
+                transaction.Rollback();
+                TempData["ReserveError"] = "預約失敗，請稍後再試。";
+                return RedirectToAction("Index");
             }
         }
 
-        public class ReservationRequest
+        public IActionResult Enter()
         {
-            public DateTime Start { get; set; }
-            public DateTime End { get; set; }
-            public string Title { get; set; }
-        }
+            string accountIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            string envUrl = _context.Accounts
+                .Where(item => item.Id == int.Parse(accountIdStr))
+                .Select(item => item.EnvUrl)
+                .First();
 
+            return Redirect(envUrl);
+        }
         public class ReservationEntry
         {
             public Guid Id { get; set; }
