@@ -19,6 +19,8 @@ public partial class Lccnet20251124PythonContext : DbContext
 
     public virtual DbSet<Account> Accounts { get; set; }
 
+    public virtual DbSet<Efmigrationshistory> Efmigrationshistories { get; set; }
+
     public virtual DbSet<EnvReversation> EnvReversations { get; set; }
 
     public virtual DbSet<SubmissionRecord> SubmissionRecords { get; set; }
@@ -31,7 +33,7 @@ public partial class Lccnet20251124PythonContext : DbContext
 
         modelBuilder.Entity<Account>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.HasKey(e => e.Id);
 
             entity.ToTable("account");
 
@@ -43,6 +45,10 @@ public partial class Lccnet20251124PythonContext : DbContext
             entity.Property(e => e.EnvUrl)
                 .HasColumnType("text")
                 .HasColumnName("env_url");
+            entity.Property(e => e.Role)
+                .HasMaxLength(45)
+                .HasDefaultValueSql("'User'")
+                .HasColumnName("role");
             entity.Property(e => e.Sha256)
                 .HasMaxLength(256)
                 .HasColumnName("sha256");
@@ -55,9 +61,19 @@ public partial class Lccnet20251124PythonContext : DbContext
                 .HasColumnName("username");
         });
 
+        modelBuilder.Entity<Efmigrationshistory>(entity =>
+        {
+            entity.HasKey(e => e.MigrationId);
+
+            entity.ToTable("__efmigrationshistory");
+
+            entity.Property(e => e.MigrationId).HasMaxLength(150);
+            entity.Property(e => e.ProductVersion).HasMaxLength(32);
+        });
+
         modelBuilder.Entity<EnvReversation>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.HasKey(e => e.Id);
 
             entity.ToTable("env_reversation");
 
