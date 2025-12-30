@@ -28,6 +28,7 @@ namespace lccnet_competition.Controllers
 
         public IActionResult Login()
         {
+            TempData["AuthorizeControlAccount"] = null;
             return View("Index");
         }
         [HttpPost]
@@ -44,10 +45,16 @@ namespace lccnet_competition.Controllers
                     .Select(item => item.Id)
                     .First();
 
+                string role = _context.Accounts
+                    .Where(item => item.Username == username && item.Sha256 == sha256)
+                    .Select(item => item.Role)
+                    .First();
+
                 var claim = new List<Claim>
                 {
                     new Claim(ClaimTypes.NameIdentifier, accountId.ToString()),
-                    new Claim(ClaimTypes.Name, username)
+                    new Claim(ClaimTypes.Name, username),
+                    new Claim(ClaimTypes.Role, role)
                 };
 
                 var claimIdentity = new ClaimsIdentity(
@@ -55,12 +62,27 @@ namespace lccnet_competition.Controllers
                     CookieAuthenticationDefaults.AuthenticationScheme
                 );
 
+                var claimProperties = new AuthenticationProperties
+                {
+                    IsPersistent = true,
+                    ExpiresUtc = DateTimeOffset.UtcNow.AddHours(1)
+                };
+
                 await HttpContext.SignInAsync(
                     CookieAuthenticationDefaults.AuthenticationScheme,
-                    new ClaimsPrincipal(claimIdentity)
+                    new ClaimsPrincipal(claimIdentity),
+                    claimProperties
                 );
 
-                Console.WriteLine($"帳號：{username}、密碼：{password}、{accountId}");
+                string accountRole = _context.Accounts
+                    .Where(item => item.Username == username && item.Sha256 == sha256)
+                    .Select(item => item.Role)
+                    .First();
+                if (accountRole == "Admin")
+                {
+                    TempData["AuthorizeControlAccount"] = "Admin";
+                }
+                Console.WriteLine($"帳號：{username}、密碼：{password}、{accountId}、{accountRole}");
             }
 
             return RedirectToAction("Index", "Home");

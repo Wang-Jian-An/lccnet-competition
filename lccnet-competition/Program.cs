@@ -8,17 +8,26 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
 builder.Services.AddDbContext<Lccnet20251124PythonContext>(options =>
 {
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-    options.UseMySql(
-        connectionString,
-        ServerVersion.AutoDetect(connectionString)
+    var connectionString = builder.Configuration.GetConnectionString("DeploymentConnection");
+    options.UseSqlServer(
+        connectionString
     );
+    //options.UseMySql(
+    //    connectionString,
+    //    ServerVersion.AutoDetect(connectionString)
+    //);
 });
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
         options.LoginPath = "/Account/Login";
         options.LogoutPath = "/Account/Logout";
+        options.ExpireTimeSpan = TimeSpan.FromHours(12);
+
+        options.Events.OnSignedIn = context =>
+        {
+            return Task.CompletedTask;
+        };
     });
 builder.Services.AddAuthorization();
 
@@ -35,6 +44,7 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseRouting();
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapStaticAssets();
