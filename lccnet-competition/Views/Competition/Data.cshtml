@@ -10,22 +10,27 @@
             <div class="col-md-6">
                 <ul class="list-group">
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        train.csv
+                        train-classification.zip
                         <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Download", "Competition", new { file = "train-classification" })">訓練資料下載 - 腫瘤分類辨識</a>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        test.csv
+                        train-segmentation.zip
                         <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Download", "Competition", new { file = "train-segmentation" })">訓練資料下載 - 腫瘤切割辨識</a>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between align-items-center">
-                        data_description.pdf
-                        <a class="btn btn-sm btn-outline-primary" href="@Url.Action("Download", "Competition", new { file = "data_description.pdf" })">下載</a>
                     </li>
                 </ul>
             </div>
             <div class="col-md-6">
                 <h5>資料說明</h5>
-                <p>訓練資料包含用戶特徵與目標值。測試資料不含目標欄位。提交的檔案應包含 <code>Id</code> 與預測欄位 <code>Prediction</code>。</p>
+                <p>
+                    此資料集包含：<br />
+                    <ul>
+                        <li>6,000 張 T1 加權 MRI 影像</li>
+                        <li>四個類別：膠質瘤（Glioma）、腦膜瘤（Meningioma）、腦下垂體腫瘤（Pituitary Tumor）以及無腫瘤（No Tumor）</li>
+                        <li>由醫師與放射科醫師驗證的逐像素（pixel-wise）分割標註遮罩</li>
+                        <li>三個解剖切面：軸向（Axial）、冠狀（Coronal）與矢狀（Sagittal）</li>
+                        <li>乾淨且經過分層處理的訓練集（5,000 筆）與測試集（1,000 筆）</li>
+                    </ul>                    
+                </p>
             </div>
         </div>
     </div>
