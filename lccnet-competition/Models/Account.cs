@@ -16,4 +16,6 @@ public partial class Account
     public DateTime? CreateDatetime { get; set; }
 
     public DateTime? UpdateDatetime { get; set; }
+
+    public string Role { get; set; } = null!;
 }
