@@ -1,17 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
-using Pomelo.EntityFrameworkCore.MySql.Scaffolding.Internal;
 using lccnet_competition.Models;
 
 namespace lccnet_competition.Data;
 
 public partial class Lccnet20251124PythonContext : DbContext
 {
-    public Lccnet20251124PythonContext()
-    {
-    }
-
     public Lccnet20251124PythonContext(DbContextOptions<Lccnet20251124PythonContext> options)
         : base(options)
     {
@@ -33,7 +28,7 @@ public partial class Lccnet20251124PythonContext : DbContext
 
         modelBuilder.Entity<Account>(entity =>
         {
-            entity.HasKey(e => e.Id);
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
 
             entity.ToTable("account");
 
@@ -63,7 +58,7 @@ public partial class Lccnet20251124PythonContext : DbContext
 
         modelBuilder.Entity<Efmigrationshistory>(entity =>
         {
-            entity.HasKey(e => e.MigrationId);
+            entity.HasKey(e => e.MigrationId).HasName("PRIMARY");
 
             entity.ToTable("__efmigrationshistory");
 
@@ -73,7 +68,7 @@ public partial class Lccnet20251124PythonContext : DbContext
 
         modelBuilder.Entity<EnvReversation>(entity =>
         {
-            entity.HasKey(e => e.Id);
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
 
             entity.ToTable("env_reversation");
 
@@ -114,6 +109,9 @@ public partial class Lccnet20251124PythonContext : DbContext
             entity.Property(e => e.Score)
                 .HasPrecision(5, 2)
                 .HasColumnName("score");
+            entity.Property(e => e.Task)
+                .HasMaxLength(45)
+                .HasColumnName("task");
             entity.Property(e => e.UpdateDatetime)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP")
                 .HasColumnType("datetime")
