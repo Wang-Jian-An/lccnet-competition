@@ -8,12 +8,6 @@
 <div class="container my-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1>競賽：</h1>
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb mb-0">
-                <li class="breadcrumb-item"><a href="@Url.Action("Index", "Home")">首頁</a></li>
-                <li class="breadcrumb-item active" aria-current="page">競賽</li>
-            </ol>
-        </nav>
     </div>
 
     @* 移除原本的 tab 切換，改以單一頁面 section + fragment 錨點（#about/#data/#submission/#leaderboard）呈現 *@
@@ -35,6 +29,22 @@
 
                 <h5>評分方式</h5>
                 <p>公開榜與私有榜混合評分。公開榜用於即時比較，最終排名以私有榜為準。</p>
+
+                <div class="mt-3">
+                    <h6>分類任務 — Macro F1-Score</h6>
+                    <p>
+                        本賽事對於多類別的分類任務採用 Macro F1-Score 作為評分指標：先對每個類別計算 Precision（精確率）與 Recall（召回率），再計算該類別的 F1 = 2 * (Precision * Recall) / (Precision + Recall)。最後對所有類別取未加權平均（macro mean），以減少類別不平衡的影響。Macro F1 範圍為 0 到 1，數值越高表示模型在各類別上的整體表現越佳。
+                    </p>
+                </div>
+
+                <div class="mt-2">
+                    <h6>影像切割任務 — Intersection over Union (IoU)</h6>
+                    <p>
+                        分割任務使用 IoU（交並比）評估分割品質：
+                        IoU = (prediction ∩ ground_truth) / (prediction ∪ ground_truth)。我們會對每張影像或每個標註物件計算 IoU，並取平均（mean IoU）作為最終分數。IoU 的值介於 0 到 1，越接近 1 表示分割越準確；常見的可接受門檻範例為 IoU ≥ 0.5。
+                    </p>
+                </div>
+
             </div>
         </div>
     </section>
