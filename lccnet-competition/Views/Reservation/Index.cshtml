@@ -1,0 +1,261 @@
+﻿@model IEnumerable<lccnet_competition.Models.EnvReversation>
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+<style>
+    .calendar {
+        display: grid;
+        grid-template-columns: 80px repeat(7, 1fr);
+        gap: 0;
+        border: 1px solid #ddd;
+        font-family: Arial, Helvetica, sans-serif;
+    }
+    .calendar .header, .calendar .time-cell, .calendar .slot {
+        border-bottom: 1px solid #eee;
+        border-right: 1px solid #eee;
+        padding: 6px;
+        box-sizing: border-box;
+    }
+    .calendar .header { background: #fafafa; font-weight: 600; text-align: center; }
+    .header .weekday { display:block; font-size: 13px; }
+    .header .date { display:block; font-size: 12px; color:#666 }
+    .calendar .time-cell { background: #fff; text-align: right; padding-right: 8px; color: #666; }
+    .calendar .slot { height: 32px; position: relative; }
+    .reserved { background: linear-gradient(90deg,#d1e7dd,#bcd9cc); color:#0f5132; }
+    /* time-range placed at top-left */
+    .reserved .time-range { position: absolute; left: 6px; top: 4px; font-size: 11px; font-weight: 600; }
+    /* move title slightly lower to avoid overlap with time-range */
+    .reserved .title { position: absolute; left: 6px; top: 18px; font-size: 13px; }
+    .controls { margin: 12px 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+    .btn { padding:6px 10px; background:#0d6efd; color:white; border-radius:4px; border:none; cursor:pointer }
+    .btn.secondary { background:#6c757d }
+    .inputs { display:flex; gap:8px; align-items:center }
+    label { font-size:13px; color:#333 }
+    .note { font-size:12px; color:#666 }
+</style>
+
+<h2>預約（顯示模式）</h2>
+<p>使用下方兩個輸入欄位指定起始與結束時間，按下「建立預約」。日曆為顯示模式，不支援拖拉或點選。</p>
+
+<div class="controls">
+    <button id="prevWeek" class="btn secondary">上一週</button>
+    <button id="nextWeek" class="btn secondary">下一週</button>
+    <div style="flex:1"></div>
+    <button id="todayBtn" class="btn">本週</button>
+</div>
+
+<form id="reserveForm" style="margin:8px 0" class="inputs" asp-controller="Reservation" asp-action="Reserve" method="post">
+    <label for="startDateInput">起始</label>
+    <input id="startDateInput" type="date" />
+    <select id="startHourSelect" aria-label="起始小時"></select>
+    <input type="hidden" id="startDateHidden" name="startDate" />
+
+    <label for="endDateInput">結束</label>
+    <input id="endDateInput" type="date" />
+    <select id="endHourSelect" aria-label="結束小時"></select>
+    <input type="hidden" id="endDateHidden" name="endDate" />
+
+    <button type="submit" class="btn">建立預約</button>
+</form>
+
+<div class="note">只能選擇整點（小時）；系統會以整點建立預約。</div>
+
+<div>
+    @ViewData["ReserveError"]
+    @ViewData["ReserveMessage"]
+</div>
+
+<div id="calendar" class="calendar" aria-label="Weekly calendar"></div>
+
+@section Scripts {
+    <script>
+        (function(){
+            const calendarEl = document.getElementById('calendar');
+            const reserveForm = document.getElementById('reserveForm');
+            const startDateInput = document.getElementById('startDateInput');
+            const endDateInput = document.getElementById('endDateInput');
+            const startHourSelect = document.getElementById('startHourSelect');
+            const endHourSelect = document.getElementById('endHourSelect');
+            const startDateHidden = document.getElementById('startDateHidden');
+            const endDateHidden = document.getElementById('endDateHidden');
+            const prevWeek = document.getElementById('prevWeek');
+            const nextWeek = document.getElementById('nextWeek');
+            const todayBtn = document.getElementById('todayBtn');
+
+            // build hour options 00..23
+            function pad(n){ return String(n).padStart(2,'0'); }
+            for (let h=0; h<24; h++){
+                const opt1 = document.createElement('option'); opt1.value = pad(h); opt1.textContent = pad(h) + ':00';
+                const opt2 = document.createElement('option'); opt2.value = pad(h); opt2.textContent = pad(h) + ':00';
+                startHourSelect.appendChild(opt1);
+                endHourSelect.appendChild(opt2);
+            }
+
+            // reservations from server (ISO strings)
+            const reservations = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model?.Select(r => new { start = r.BookStartDatetime, end = r.BookEndDatetime, title = "已預約" }) ?? System.Linq.Enumerable.Empty<object>()));
+
+            const slotMinutes = 60; // granularity for display (one-hour slots)
+            const startHour = 0; // show from 00:00
+            const rows = 24; // display all 24 hours (0..23)
+            let baseDate = new Date();
+
+            function startOfWeek(d) {
+                const date = new Date(d);
+                const day = (date.getDay() + 6) % 7; // Monday = 0
+                date.setDate(date.getDate() - day);
+                date.setHours(0,0,0,0);
+                return date;
+            }
+
+            function formatDate(d) {
+                return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+            }
+
+            function formatTime(d) {
+                return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+
+            function formatTimeShort(d) {
+                return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+            }
+
+            function formatRange(start, end) {
+                return `${formatTimeShort(start)} - ${formatTimeShort(end)}`;
+            }
+
+            function isoDateTime(d) { return d.toISOString(); }
+
+            // helper: compose local datetime string yyyy-MM-ddTHH:mm
+            function buildLocalDateTime(dateStr, hourStr){
+                if (!dateStr || !hourStr) return '';
+                return dateStr + 'T' + hourStr + ':00';
+            }
+
+            // sync hidden inputs when controls change
+            function syncHiddenValues(){
+                startDateHidden.value = buildLocalDateTime(startDateInput.value, startHourSelect.value);
+                endDateHidden.value = buildLocalDateTime(endDateInput.value, endHourSelect.value);
+            }
+
+            startDateInput.addEventListener('change', syncHiddenValues);
+            endDateInput.addEventListener('change', syncHiddenValues);
+            startHourSelect.addEventListener('change', syncHiddenValues);
+            endHourSelect.addEventListener('change', syncHiddenValues);
+
+            // on submit validate and ensure hidden inputs set
+            if (reserveForm){
+                reserveForm.addEventListener('submit', function(ev){
+                    syncHiddenValues();
+                    const sVal = startDateHidden.value;
+                    const eVal = endDateHidden.value;
+                    if (!sVal || !eVal){
+                        alert('請選擇起始與結束的日期與整點小時');
+                        ev.preventDefault();
+                        return;
+                    }
+                    const s = new Date(sVal);
+                    const e = new Date(eVal);
+                    if (isNaN(s) || isNaN(e)){
+                        alert('時間格式錯誤'); ev.preventDefault(); return;
+                    }
+                    if (e <= s){ alert('結束時間必須在起始時間之後（以整點為單位）'); ev.preventDefault(); return; }
+                    const now = new Date();
+                    if (s < now){ alert('起始時間必須在未來'); ev.preventDefault(); return; }
+                    // allow submit
+                });
+            }
+
+            function renderCalendar() {
+                calendarEl.innerHTML = '';
+                const weekStart = startOfWeek(baseDate);
+
+                // header placeholder
+                const headerEmpty = document.createElement('div');
+                headerEmpty.className = 'header';
+                headerEmpty.textContent = '';
+                calendarEl.appendChild(headerEmpty);
+
+                for (let i = 0; i < 7; i++) {
+                    const h = document.createElement('div');
+                    h.className = 'header';
+                    const d = new Date(weekStart);
+                    d.setDate(d.getDate() + i);
+                    const wk = document.createElement('span'); wk.className = 'weekday'; wk.textContent = d.toLocaleDateString(undefined, { weekday: 'short' });
+                    const dt = document.createElement('span'); dt.className = 'date'; dt.textContent = formatDate(d);
+                    h.appendChild(wk); h.appendChild(dt);
+                    calendarEl.appendChild(h);
+                }
+
+                for (let row = 0; row < rows; row++) {
+                    const minutes = startHour * 60 + row * slotMinutes;
+                    const label = new Date(); label.setHours(0,0,0,0); label.setMinutes(minutes);
+                    const timeCell = document.createElement('div');
+                    timeCell.className = 'time-cell';
+                    timeCell.textContent = formatTime(label);
+                    calendarEl.appendChild(timeCell);
+
+                    for (let d = 0; d < 7; d++) {
+                        const slot = document.createElement('div');
+                        slot.className = 'slot';
+                        const slotStart = new Date(weekStart);
+                        slotStart.setDate(slotStart.getDate() + d);
+                        slotStart.setHours(0,0,0,0);
+                        slotStart.setMinutes(minutes);
+                        const slotEnd = new Date(slotStart.getTime() + slotMinutes * 60 * 1000);
+                        slot.dataset.start = isoDateTime(slotStart);
+                        slot.dataset.end = isoDateTime(slotEnd);
+                        calendarEl.appendChild(slot);
+                    }
+                }
+
+                // after building grid, mark server reservations that intersect current week
+                try {
+                    for (const rv of reservations) {
+                        const s = new Date(rv.start);
+                        const e = new Date(rv.end);
+                        if (!isNaN(s) && !isNaN(e)) {
+                            markReservedRange(s, e, rv.title);
+                        }
+                    }
+                } catch (ex) {
+                    console.error('Error marking reservations', ex);
+                }
+            }
+
+            function markReservedRange(start, end, title) {
+                const slots = Array.from(calendarEl.querySelectorAll('.slot'));
+                for (const s of slots) {
+                    const sStart = new Date(s.dataset.start);
+                    const sEnd = new Date(s.dataset.end);
+                    if (start < sEnd && end > sStart) {
+                        s.classList.add('reserved');
+                        // add title if not present
+                        if (!s.querySelector('.title')) {
+                            const t = document.createElement('div');
+                            t.className = 'title';
+                            t.textContent = title || '已預約';
+                            s.appendChild(t);
+                        }
+
+                        // add time-range only on the slot that contains the reservation start
+                        if (start >= sStart && start < sEnd) {
+                            if (!s.querySelector('.time-range')) {
+                                const tr = document.createElement('div');
+                                tr.className = 'time-range';
+                                tr.textContent = formatRange(start, end);
+                                s.appendChild(tr);
+                            }
+                        }
+                    }
+                }
+            }
+
+            prevWeek.addEventListener('click', () => { baseDate.setDate(baseDate.getDate() - 7); renderCalendar(); });
+            nextWeek.addEventListener('click', () => { baseDate.setDate(baseDate.getDate() + 7); renderCalendar(); });
+            todayBtn.addEventListener('click', () => { baseDate = new Date(); renderCalendar(); });
+
+            // initial render
+            renderCalendar();
+        })();
+    </script>
+}

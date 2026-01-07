@@ -1,0 +1,125 @@
+﻿@model IEnumerable<lccnet_competition.Models.SubmissionRecord>
+
+@{
+    ViewData["Title"] = "Competition Submission";
+}
+
+<h1>Competition Submission</h1>
+
+@*
+    Tabbed UI: Classification (CSV) and Segmentation (ZIP)
+*@
+<div class="card mb-3">
+    <div class="card-body">
+        <h4>繳交提交</h4>
+        @if (TempData["SubmissionMessage"] != null)
+        {
+            <div class="alert alert-info">@TempData["SubmissionMessage"]</div>
+        }
+
+        <ul class="nav nav-tabs" id="submissionTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="classification-tab" data-bs-toggle="tab" data-bs-target="#classification" type="button" role="tab" aria-controls="classification" aria-selected="true">分類任務 (CSV)</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="segmentation-tab" data-bs-toggle="tab" data-bs-target="#segmentation" type="button" role="tab" aria-controls="segmentation" aria-selected="false">影像分割 (ZIP)</button>
+            </li>
+        </ul>
+
+        <div class="tab-content p-3 border border-top-0" id="submissionTabsContent">
+            <div class="tab-pane fade show active" id="classification" role="tabpanel" aria-labelledby="classification-tab">
+                <p>上傳 CSV 檔案，格式需包含 <code>Id</code> 與 <code>Prediction</code>。上傳後系統會回傳公開榜分數（若有）並更新排行榜。</p>
+                <p>@TempData["ClassSubmitError"]</p>
+
+                <form asp-action="SubmissionClassification" asp-controller="Competition" method="post" enctype="multipart/form-data" class="mb-3">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="task" value="classification" />
+
+                    <div class="mb-3">
+                        <label for="submissionCsv" class="form-label">選擇檔案 (CSV)</label>
+                        <input class="form-control" type="file" id="submissionCsv" name="submissionFile" accept=".csv" />
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">上傳並送出</button>
+                        <a asp-controller="Competition" asp-action="DownloadClassificationSubmission" class="btn btn-secondary" id="exampleCsvBtn">下載範例檔 (CSV)</a>
+                    </div>
+                </form>
+
+                <small class="text-muted d-block mt-2">提示：上傳前請確認檔案欄位與順序正確。</small>
+            </div>
+
+            <div class="tab-pane fade" id="segmentation" role="tabpanel" aria-labelledby="segmentation-tab">
+                <p>上傳 ZIP 壓縮檔，內容應包含所有測試資料經影像分割後的結果。</p>
+
+                <form asp-action="SubmissionSegmentation" asp-controller="Competition" method="post" enctype="multipart/form-data" class="mb-3">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="task" value="segmentation" />
+
+                    <div class="mb-3">
+                        <label for="submissionZip" class="form-label">選擇檔案 (ZIP)</label>
+                        <input class="form-control" type="file" id="submissionZip" name="submissionFile" accept=".zip" />
+                    </div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">上傳並送出</button>
+                        <button type="button" asp-controller="Competition" asp-action="DownloadSegmentationSubmission" class="btn btn-secondary" id="exampleZipBtn">下載範例檔 (ZIP)</button>
+                    </div>
+                </form>
+
+                <small class="text-muted d-block mt-2">提示：上傳並送出後，請在原頁面停留約 60 秒時間以利結果之計算。</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="mt-4">
+    <h5>歷史繳交紀錄</h5>
+    @if (Model != null && Model.Any())
+    {
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>繳交時間</th>
+                    <th>檔案名稱</th>
+                    <th>分數</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var submission in Model)
+                {
+                    <tr>
+                        <td>@submission.CreateDatetime</td>
+                        <td>@submission.FileName</td>
+                        <td>@submission.Score</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p>尚未有繳交紀錄。</p>
+    }
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var csvBtn = document.getElementById('exampleCsvBtn');
+            var zipBtn = document.getElementById('exampleZipBtn');
+
+            if (csvBtn) {
+                csvBtn.addEventListener('click', function () {
+                    window.location.href = '@Url.Action("Download", "Competition", new { file = "example_classification" })';
+                });
+            }
+
+            if (zipBtn) {
+                zipBtn.addEventListener('click', function () {
+                    window.location.href = '@Url.Action("Download", "Competition", new { file = "example_segmentation" })';
+                });
+            }
+        })();
+    </script>
+}

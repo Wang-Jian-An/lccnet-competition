@@ -1,0 +1,89 @@
+﻿@*
+    Competition index page - A Kaggle-like competition
+*@
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="container my-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>競賽：</h1>
+    </div>
+
+    @* 移除原本的 tab 切換，改以單一頁面 section + fragment 錨點（#about/#data/#submission/#leaderboard）呈現 *@
+
+    <section id="about" class="mb-4">
+        <div class="card mb-3">
+            <div class="card-body">
+                <h4>任務說明</h4>
+                <p>
+                    本次競賽將使用一個高品質、由專家標註的 MRI 資料集，專門用於腦腫瘤的分割與分類。
+                    它針對現有資料集（例如 BraTS、Figshare）中的常見限制進行改進，包括類別不平衡、腫瘤類型範圍狹窄，以及標註不一致等問題。
+                </p>
+
+                <h5>重要日期</h5>
+                <ul>
+                    <li>開始：2025-12-30</li>
+                    <li>截止：2026-01-09</li>
+                </ul>
+
+                <h5>評分方式</h5>
+                <p>公開榜與私有榜混合評分。公開榜用於即時比較，最終排名以私有榜為準。</p>
+
+                <div class="mt-3">
+                    <h6>分類任務 — Macro F1-Score</h6>
+                    <p>
+                        本賽事對於多類別的分類任務採用 Macro F1-Score 作為評分指標：先對每個類別計算 Precision（精確率）與 Recall（召回率），再計算該類別的 F1 = 2 * (Precision * Recall) / (Precision + Recall)。最後對所有類別取未加權平均（macro mean），以減少類別不平衡的影響。Macro F1 範圍為 0 到 1，數值越高表示模型在各類別上的整體表現越佳。
+                    </p>
+                </div>
+
+                <div class="mt-2">
+                    <h6>影像切割任務 — Intersection over Union (IoU)</h6>
+                    <p>
+                        分割任務使用 IoU（交並比）評估分割品質：
+                        IoU = (prediction ∩ ground_truth) / (prediction ∪ ground_truth)。我們會對每張影像或每個標註物件計算 IoU，並取平均（mean IoU）作為最終分數。IoU 的值介於 0 到 1，越接近 1 表示分割越準確；常見的可接受門檻範例為 IoU ≥ 0.5。
+                    </p>
+                </div>
+
+            </div>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            var fileInput = document.getElementById('submissionFile');
+            var exampleBtn = document.getElementById('exampleSubmissionBtn');
+
+            if (fileInput) {
+                fileInput.addEventListener('change', function (e) {
+                    var f = e.target.files && e.target.files[0];
+                    if (f) {
+                        var maxMB = 10;
+                        if (f.size > maxMB * 1024 * 1024) {
+                            alert('檔案大小超過 ' + maxMB + ' MB，請壓縮或使用較小檔案。');
+                            e.target.value = null;
+                        }
+                    }
+                });
+            }
+
+            if (exampleBtn) {
+                exampleBtn.addEventListener('click', function () {
+                    // 這裡可以改成實際範例檔案下載路徑
+                    var csv = 'Id,Prediction\n1,0.5\n2,0.7\n3,0.2\n';
+                    var blob = new Blob([csv], { type: 'text/csv' });
+                    var url = URL.createObjectURL(blob);
+                    var a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'example_submission.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                });
+            }
+        })();
+    </script>
+}

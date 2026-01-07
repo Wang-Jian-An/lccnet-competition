@@ -1,0 +1,45 @@
+html {
+  font-size: 14px;
+}
+
+@media (min-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+/* Ensure full-height layout and avoid page scrollbar caused by extra margins */
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+/* Use flex layout so footer stays at bottom without creating extra scroll space */
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Main content should grow to fill available space and push footer down */
+main[role="main"] {
+  flex: 1 0 auto;
+}
+
+/* Footer should not force additional space */
+.footer {
+  flex-shrink: 0;
+}
+
+.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
+  color: var(--bs-secondary-color);
+  text-align: end;
+}
+
+.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
+  text-align: start;
+}
