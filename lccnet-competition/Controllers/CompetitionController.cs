@@ -6,11 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
-using System.IO;
 using System.IO.Compression;
 using System.Security.Claims;
-using System.Threading.Tasks;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace lccnet_competition.Controllers
 {
@@ -162,6 +159,7 @@ namespace lccnet_competition.Controllers
                     confusionMatrix.FN += 1;
                 }
             }
+            //Console.WriteLine($"{confusionMatrix.TP}, {confusionMatrix.FP}, {confusionMatrix.TN}, {confusionMatrix.FN}");
             return confusionMatrix;
         }
 
@@ -292,7 +290,6 @@ namespace lccnet_competition.Controllers
                     Task = "classification",
                     CreateDatetime = DateTime.UtcNow.AddHours(8)
                 };
-                Console.WriteLine(data);
                 _context.SubmissionRecords.Add(data);
                 _context.SaveChanges();
                 transaction.Commit();
@@ -382,6 +379,7 @@ namespace lccnet_competition.Controllers
                             answerData
                         );
                         double iou = ComputeIoU(confusionMatrix);
+                        Console.WriteLine(iou);
                         finalIoU.Add(iou);
 
                     } else
@@ -389,7 +387,6 @@ namespace lccnet_competition.Controllers
                         TempData["ClassSubmitError"] = "壓縮檔中有非圖片檔案，請檢查後重新上傳。";
                         return RedirectToAction("Submission");
                     }
-                    break;
                 }
             }
             double finalMeanIoU = finalIoU.Average();
@@ -428,7 +425,8 @@ namespace lccnet_competition.Controllers
                 return 0;
             } else
             {
-                double result = confusionMatrix.TP / decorator;
+                Console.WriteLine($"{confusionMatrix.TP}, {decorator}");
+                double result = (double)confusionMatrix.TP / (double)decorator;
                 return result;
             }
         }
@@ -450,7 +448,6 @@ namespace lccnet_competition.Controllers
                         L8 pixel = row[x];
 
                         byte pixelValue = pixel.PackedValue;
-                        Console.WriteLine(pixelValue);
 
                         if (pixelValue < 127)
                         {
