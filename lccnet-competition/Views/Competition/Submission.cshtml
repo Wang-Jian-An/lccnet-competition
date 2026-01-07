@@ -50,7 +50,7 @@
             </div>
 
             <div class="tab-pane fade" id="segmentation" role="tabpanel" aria-labelledby="segmentation-tab">
-                <p>上傳 ZIP 壓縮檔，內容應包含模型輸出或預期的分割結果檔案（請參考比賽說明的資料格式）。</p>
+                <p>上傳 ZIP 壓縮檔，內容應包含所有測試資料經影像分割後的結果。</p>
 
                 <form asp-action="SubmissionSegmentation" asp-controller="Competition" method="post" enctype="multipart/form-data" class="mb-3">
                     @Html.AntiForgeryToken()
@@ -67,7 +67,7 @@
                     </div>
                 </form>
 
-                <small class="text-muted d-block mt-2">提示：請確認 ZIP 內檔案結構符合競賽要求。</small>
+                <small class="text-muted d-block mt-2">提示：上傳並送出後，請在原頁面停留約 60 秒時間以利結果之計算。</small>
             </div>
         </div>
     </div>
