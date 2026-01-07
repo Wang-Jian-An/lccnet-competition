@@ -1,0 +1,40 @@
+﻿@model IEnumerable<lccnet_competition.Models.Account>
+@{
+    ViewData["Title"] = "帳號管理";
+}
+
+<h2>帳號管理</h2>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Id</th>
+            <th>使用者名稱</th>
+            <th>環境網址</th>
+        </tr>
+    </thead>
+    <tbody>
+    @if (Model != null && Model.Any())
+    {
+        foreach (var acct in Model)
+        {
+            <tr>
+                <td>@acct.Id</td>
+                <td>@acct.Username</td>
+                <td>
+                    @if (!string.IsNullOrWhiteSpace(acct.EnvUrl))
+                    {
+                        <a href="@acct.EnvUrl" target="_blank">@acct.EnvUrl</a>
+                    }
+                </td>
+            </tr>
+        }
+    }
+    else
+    {
+        <tr>
+            <td colspan="3">目前沒有帳號</td>
+        </tr>
+    }
+    </tbody>
+</table>
