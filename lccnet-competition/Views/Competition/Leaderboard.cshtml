@@ -1,61 +1,43 @@
-﻿@model IEnumerable<lccnet_competition.Models.Leaderboard>
+﻿@model lccnet_competition.ViewModels.LeaderboardViewModel
 
-@*
-    Partial view: Leaderboard (排行榜)
-*@
-<div class="card mb-3">
-    <div class="card-body">
-        <h4>排行榜（公開榜） - 分類任務</h4>
+<ul class="nav nav-tabs mb-3" id="leaderboardTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active"
+                id="classification-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#classification"
+                type="button"
+                role="tab">
+            分類任務
+        </button>
+    </li>
 
-        <div class="table-responsive">
-            <table class="table table-striped table-hover">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>使用者名稱</th>
-                        <th>公開榜分數</th>
-                        <th>提交時間</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (Model != null)
-                    {
-                        foreach (var r in Model)
-                        {
-                            <tr>
-                                <td>@r.Rank</td>
-                                <td>@r.Username</td>
-                                <td>@String.Format("{0:0.00000}", r.Score)</td>
-                                <td>@r.LastSubmissionDateTime</td>
-                            </tr>
-                        }
-                    }
-                    else
-                    {
-                        // sample rows when no data provided from server
-                        <tr>
-                            <td>1</td>
-                            <td>TeamAlpha</td>
-                            <td>0.84213</td>
-                            <td>2025-02-14 10:23</td>
-                        </tr>
-                        <tr>
-                            <td>2</td>
-                            <td>DataNinjas</td>
-                            <td>0.80345</td>
-                            <td>2025-02-14 09:50</td>
-                        </tr>
-                        <tr>
-                            <td>3</td>
-                            <td>ModelMasters</td>
-                            <td>0.79802</td>
-                            <td>2025-02-13 22:11</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link"
+                id="segmentation-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#segmentation"
+                type="button"
+                role="tab">
+            影像切割任務
+        </button>
+    </li>
+</ul>
 
-        <p class="text-muted">說明：排行榜為公開榜，最終私有榜排名才是比賽結果。</p>
+<div class="tab-content">
+    <div class="tab-pane fade show active"
+         id="classification"
+         role="tabpanel">
+        @await Html.PartialAsync(
+        "_LeaderboardClassification",
+                Model.ClassificationLeaderboard)
+    </div>
+
+    <div class="tab-pane fade"
+         id="segmentation"
+         role="tabpanel">
+        @await Html.PartialAsync(
+                "_LeaderboardSegmentation",
+                Model.SegmentationLeaderboard)
     </div>
 </div>
