@@ -1,12 +1,16 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.StaticFiles;
-using lccnet_competition.Data;
+﻿using lccnet_competition.Data;
 using lccnet_competition.Models;
-using System.Security.Claims;
-using Microsoft.Identity.Client;
-using System.Transactions;
-using System.Threading.Tasks;
+using lccnet_competition.ViewModels;
 using Microsoft.AspNetCore.Authorization; // 用於取得 MIME Type
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.StaticFiles;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using System.IO;
+using System.IO.Compression;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace lccnet_competition.Controllers
 {
@@ -15,6 +19,13 @@ namespace lccnet_competition.Controllers
 
         private readonly IWebHostEnvironment _env;
         private readonly Lccnet20251124PythonContext _context;
+
+        public CompetitionController(IWebHostEnvironment env, Lccnet20251124PythonContext context)
+        {
+            _env = env;
+            _context = context;
+        }
+
         private string[] Classes = new string[]
         {
             "glioma",
@@ -22,6 +33,7 @@ namespace lccnet_competition.Controllers
             "no_tumor",
             "pituitary"
         };
+
         public class ConfusionMatrix
         {
             public int TP { get; set; }
@@ -30,11 +42,6 @@ namespace lccnet_competition.Controllers
             public int FN { get; set; }
         }
 
-        public CompetitionController(IWebHostEnvironment env, Lccnet20251124PythonContext context)
-        {
-            _env = env;
-            _context = context;
-        }
 
         [Authorize]
         public IActionResult Index()
@@ -76,7 +83,7 @@ namespace lccnet_competition.Controllers
         }
 
         // 輔助方法：自動判斷 MIME Type
-        private string GetContentType(string path)
+        private static string GetContentType(string path)
         {
             var provider = new FileExtensionContentTypeProvider();
             if (!provider.TryGetContentType(path, out string? contentType))
@@ -99,6 +106,63 @@ namespace lccnet_competition.Controllers
                 .Where(item => item.AccountId == accountId)
                 .ToList();
             return View(data);
+        }
+
+        private static double ComputeF1Score(ConfusionMatrix confusionMatrix)
+        {
+            double precision = 0.0;
+            double recall = 0.0;
+
+            // 如果沒有預測為該類別，precision 視為 0
+            if (confusionMatrix.TP + confusionMatrix.FP > 0)
+            {
+                precision = (double)confusionMatrix.TP / (confusionMatrix.TP + confusionMatrix.FP);
+            }
+
+            // 如果沒有實際為該類別，recall 視為 0
+            if (confusionMatrix.TP + confusionMatrix.FN > 0)
+            {
+                recall = (double)confusionMatrix.TP / (confusionMatrix.TP + confusionMatrix.FN);
+            }
+
+            double f1 = 0.0;
+            if (precision + recall > 0)
+            {
+                f1 = (2 * precision * recall) / (precision + recall);
+            }
+            return f1;
+        }
+
+        private static ConfusionMatrix ComputeConfusionMatrix(List<int> prediction, List<int> groundTruth)
+        {
+            int answerPredictionCount = prediction.Count;
+            ConfusionMatrix confusionMatrix = new()
+            {
+                TP = 0,
+                TN = 0,
+                FP = 0,
+                FN = 0
+            };
+            for (int j = 0; j < answerPredictionCount; j++)
+            {
+                if (prediction[j] == 1 && groundTruth[j] == 1)
+                {
+                    confusionMatrix.TP += 1;
+                }
+                else if (prediction[j] == 0 && groundTruth[j] == 0)
+                {
+                    confusionMatrix.TN += 1;
+                }
+                else if (prediction[j] == 1 && groundTruth[j] == 0)
+                {
+                    confusionMatrix.FP += 1;
+                }
+                else
+                {
+                    confusionMatrix.FN += 1;
+                }
+            }
+            return confusionMatrix;
         }
 
         [HttpPost]
@@ -190,32 +254,11 @@ namespace lccnet_competition.Controllers
                 List<int> isActualClass = answers
                     .Select(item => item == cls ? 1 : 0)
                     .ToList();
-                confusionMatrixs[cls] = new ConfusionMatrix()
-                {
-                    TP = 0,
-                    TN = 0,
-                    FP = 0,
-                    FN = 0
-                };
-                for (int j = 0; j < answerPredictionCount; j++)
-                {
-                    if (isPredictionClass[j] == 1 && isActualClass[j] == 1)
-                    {
-                        confusionMatrixs[cls].TP += 1;
-                    }
-                    else if (isPredictionClass[j] == 0 && isActualClass[j] == 0)
-                    {
-                        confusionMatrixs[cls].TN += 1;
-                    }
-                    else if (isPredictionClass[j] == 1 && isActualClass[j] == 0)
-                    {
-                        confusionMatrixs[cls].FP += 1;
-                    }
-                    else
-                    {
-                        confusionMatrixs[cls].FN += 1;
-                    }
-                }
+                ConfusionMatrix confusionMatrix = ComputeConfusionMatrix(
+                    isPredictionClass,
+                    isActualClass
+                );
+                confusionMatrixs[cls] = confusionMatrix;
             }
 
             // 計算 F1-Score 們
@@ -223,26 +266,7 @@ namespace lccnet_competition.Controllers
             foreach (string cls in Classes)
             {
                 ConfusionMatrix confusionMatrix = confusionMatrixs[cls];
-                double precision = 0.0;
-                double recall = 0.0;
-
-                // 如果沒有預測為該類別，precision 視為 0
-                if (confusionMatrix.TP + confusionMatrix.FP > 0)
-                {
-                    precision = (double)confusionMatrix.TP / (confusionMatrix.TP + confusionMatrix.FP);
-                }
-
-                // 如果沒有實際為該類別，recall 視為 0
-                if (confusionMatrix.TP + confusionMatrix.FN > 0)
-                {
-                    recall = (double)confusionMatrix.TP / (confusionMatrix.TP + confusionMatrix.FN);
-                }
-
-                double f1 = 0.0;
-                if (precision + recall > 0)
-                {
-                    f1 = (2 * precision * recall) / (precision + recall);
-                }
+                double f1 = ComputeF1Score(confusionMatrix);
 
                 f1Scores.Add(f1);
             }
@@ -265,7 +289,8 @@ namespace lccnet_competition.Controllers
                     IsSuccess = 1,
                     FileName = filename,
                     Score = (decimal)macroF1Score,
-                    Task = "classification"
+                    Task = "classification",
+                    CreateDatetime = DateTime.UtcNow.AddHours(8)
                 };
                 Console.WriteLine(data);
                 _context.SubmissionRecords.Add(data);
@@ -299,15 +324,163 @@ namespace lccnet_competition.Controllers
         }
 
         [HttpPost]
-        public IActionResult SubmissionSegmentation()
+        public IActionResult SubmissionSegmentation(IFormFile submissionFile)
         {
-            return View();
+            string accountIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            if (string.IsNullOrEmpty(accountIdStr) || !int.TryParse(accountIdStr, out var accountId))
+            {
+                return RedirectToAction("Login", "Account");
+            }
+
+            if (submissionFile == null || submissionFile.Length == 0)
+            {
+                TempData["SegSubmitError"] = "請先上傳資料";
+                return RedirectToAction("Submission");
+            }
+
+            List<string> SegmentationMaskAnswerFileNames = [.. Directory.EnumerateFiles(Path.Combine(_env.WebRootPath, "File", "masks"))];
+            List<double> finalIoU = [];
+
+            // 讀取ZIP 壓縮檔案
+            using (ZipArchive archive = new ZipArchive(submissionFile.OpenReadStream(), ZipArchiveMode.Read))
+            {
+                foreach (var entry in archive.Entries)
+                {
+                    if (IsImageFile(entry.Name))
+                    {
+                        string answerFileName = SegmentationMaskAnswerFileNames
+                            .First(f => Path.GetFileName(f) == entry.FullName);
+                        List<int> submittedData;
+                        List<int> answerData;
+                        using (Stream entryStream = entry.Open())
+                        {
+                            using (Image<L8> submittedImage = SixLabors.ImageSharp.Image.Load<L8>(entryStream))
+                            {
+                                submittedData = LoadImageFlow(submittedImage);
+                            }
+                        }
+                        using (Stream entryStream = new FileStream(
+                            answerFileName,
+                            FileMode.Open,
+                            FileAccess.Read
+                        ))
+                        {
+                            using (Image<L8> answerImage = SixLabors.ImageSharp.Image.Load<L8>(entryStream))
+                            {
+                                answerData = LoadImageFlow(answerImage);
+                            }
+                        }
+
+                        if (submittedData.Count != answerData.Count)
+                        {
+                            TempData["SegSubmitError"] = $"{entry.Name} 不符合答案所需之圖片大小，請重新檢查與確認。";
+                            return RedirectToAction("Submission");
+                        }
+
+                        ConfusionMatrix confusionMatrix = ComputeConfusionMatrix(
+                            submittedData,
+                            answerData
+                        );
+                        double iou = ComputeIoU(confusionMatrix);
+                        finalIoU.Add(iou);
+
+                    } else
+                    {
+                        TempData["ClassSubmitError"] = "壓縮檔中有非圖片檔案，請檢查後重新上傳。";
+                        return RedirectToAction("Submission");
+                    }
+                    break;
+                }
+            }
+            double finalMeanIoU = finalIoU.Average();
+
+            // Store the result
+            var transaction = _context.Database.BeginTransaction();
+            try
+            {
+                SubmissionRecord record = new()
+                {
+                    AccountId = accountId,
+                    FileName = submissionFile.FileName,
+                    IsSuccess = 1,
+                    Score = (decimal)finalMeanIoU,
+                    CreateDatetime = DateTime.UtcNow.AddHours(8),
+                    Task = "segmentation"
+                };
+                _context.SubmissionRecords.Add(record);
+                _context.SaveChanges();
+
+                transaction.Commit();
+            } catch (Exception ex)
+            {
+                transaction.Rollback();
+                TempData["ClassSubmitError"] = ex.Message.ToString();
+            }
+
+            return RedirectToAction("Submission");
         }
 
-        public IActionResult Leaderboard(string task)
+        private static double ComputeIoU(ConfusionMatrix confusionMatrix)
+        {
+            int decorator = confusionMatrix.TP + confusionMatrix.FP + confusionMatrix.FN;
+            if (decorator == 0)
+            {
+                return 0;
+            } else
+            {
+                double result = confusionMatrix.TP / decorator;
+                return result;
+            }
+        }
+
+        private static List<int> LoadImageFlow(Image<L8> image)
+        {
+            int width = image.Width;
+            int height = image.Height;
+
+            List<int> pixelData = [];
+            image.ProcessPixelRows(accessor =>
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    Span<L8> row = accessor.GetRowSpan(y);
+
+                    for (int x = 0; x < width; x++)
+                    {
+                        L8 pixel = row[x];
+
+                        byte pixelValue = pixel.PackedValue;
+                        Console.WriteLine(pixelValue);
+
+                        if (pixelValue < 127)
+                        {
+                            pixelData.Add(0);
+                        }
+                        else
+                        {
+                            pixelData.Add(1);
+                        }
+                    }
+                }
+            });
+            return pixelData;
+        }
+
+        private static Boolean IsImageFile(string fileName)
+        {
+            if (fileName.EndsWith(".jpg") || fileName.EndsWith(".png") || fileName.EndsWith(".jpeg")) 
+            {
+                return true;
+            } else
+            {
+                return false;
+            }
+        }
+
+        private List<Leaderboard> GetClassificationRank()
         {
             List<Leaderboard> leaderboards = _context.SubmissionRecords
-                .Where(s => s.Task == task && s.Score != null)
+                .Where(s => s.Task == "classification" && s.Score != null)
                 .Join(
                     _context.Accounts,
                     s => s.AccountId,
@@ -328,16 +501,59 @@ namespace lccnet_competition.Controllers
                     // 最後一次提交
                     LastSubmissionDateTime = g.Max(x => x.s.CreateDatetime)
                 })
-                .OrderBy(x => x.Score)
+                .OrderByDescending(x => x.Score)
                 .ToList();
 
             for (int i = 0; i < leaderboards.Count; i++)
             {
                 leaderboards[i].Rank = i + 1;
             }
-            Console.WriteLine(leaderboards.Count);
+            return leaderboards;
+        }
 
-            return View("Leaderboard", leaderboards);
+        private List<Leaderboard>  GetSegmentationRank()
+        {
+            List<Leaderboard> leaderboards = _context.SubmissionRecords
+                .Where(s => s.Task == "segmentation" && s.Score != null)
+                .Join(
+                    _context.Accounts,
+                    s => s.AccountId,
+                    a => a.Id,
+                    (s, a) => new { s, a }
+                )
+                .GroupBy(x => new { x.a.Id, x.a.Username })
+                .Select(g => new Leaderboard
+                {
+                    Rank = 0,
+                    Username = g.Key.Username,
+
+                    // 最低分 / 最佳分（依你需求）
+                    Score = g.Max(x => (double)x.s.Score!),
+
+                    SubmissionCount = g.Count(),
+
+                    // 最後一次提交
+                    LastSubmissionDateTime = g.Max(x => x.s.CreateDatetime)
+                })
+                .OrderByDescending(x => x.Score)
+                .ToList();
+
+            for (int i = 0; i < leaderboards.Count; i++)
+            {
+                leaderboards[i].Rank = i + 1;
+            }
+            return leaderboards;
+        }
+
+        public IActionResult Leaderboard()
+        {
+            var vm = new LeaderboardViewModel
+            {
+                ClassificationLeaderboard = GetClassificationRank(),
+                SegmentationLeaderboard = GetSegmentationRank()
+            };
+
+            return View("Leaderboard", vm);
         }
     }
 }
